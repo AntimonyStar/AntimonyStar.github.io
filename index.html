@@ -5,8 +5,25 @@
         <link rel="stylesheet" href="style.css">
     </head>
     <body>
-        <img src="En Passant.png" width="300">
+        <div class="navbar">
+            <button onclick="showimage()">私人问诊</button>
+            <button>a</button>
+            <button>b</button>
+            <button>c</button>
+            <button>d</button>
+        </div>
+        <div id="imageContainer" style="display: none; text-align: center; margin-top: 50px;">
+            <img src="En Passant.png" width="300">
+            <p>AI Doctor</p>
+        </div>
+        
         <h1>Welcome to my website.</h1>
         <p>This is my website.</p>
+
+    <script>
+        function showimage(){
+            document.getElementById("imageContainer").style.display = "block";
+        }
+    </script>    
     </body>
 </html>
