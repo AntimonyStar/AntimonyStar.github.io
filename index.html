@@ -1,29 +1,33 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>My AI Doctor</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body>
-        <div class="navbar">
-            <button onclick="showimage()">私人问诊</button>
-            <button>a</button>
-            <button>b</button>
-            <button>c</button>
-            <button>d</button>
-        </div>
-        <div id="imageContainer" style="display: none; text-align: center; margin-top: 50px;">
-            <img src="En Passant.png" width="300">
-            <p>AI Doctor</p>
-        </div>
-        
-        <h1>Welcome to my website.</h1>
-        <p>This is my website.</p>
+<head>
+    <title>My AI Doctor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="navbar">
+        <button onclick="showimage()">私人问诊</button>
+        <button>a</button>
+        <button>b</button>
+        <button>c</button>
+        <button>d</button>
+    </div>
+    <div id="imageContainer" style="display: none; text-align: center; margin-top: 50px;">
+        <img src="En Passant.png" width="300">
+        <p>AI Doctor</p>
+    </div>
+    
+    <div id="messages" style="margin: 50px auto; max-width: 600px; padding: 20px; background-color: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
 
-    <script>
-        function showimage(){
-            document.getElementById("imageContainer").style.display = "block";
-        }
-    </script>    
-    </body>
+    </div>
+
+    <h1>Welcome to my website.</h1>
+    <p>This is my website.</p>
+
+<script>
+    function showimage(){
+        document.getElementById("imageContainer").style.display = "block";
+    }
+</script>    
+</body>
 </html>
