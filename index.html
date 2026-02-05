@@ -12,11 +12,25 @@
         <button>c</button>
         <button>d</button>
     </div>
-    <div id="imageContainer" style="display: none; text-align: center; margin-top: 50px;">
+    <div id="section-private" class="section" style="display: none; text-align: center; margin-top: 50px;">
         <img src="En Passant.png" width="300">
         <p>AI Doctor</p>
     </div>
-    
+    <div id="section-a" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
+        <p>Content for A (placeholder)</p>
+    </div>
+
+    <div id="section-b" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
+        <p>Content for B (placeholder)</p>
+    </div>
+
+    <div id="section-c" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
+        <p>Content for C (placeholder)</p>
+    </div>
+
+    <div id="section-d" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
+        <p>Content for D (placeholder)</p>
+    </div>
     <div id="messages" style="margin: 50px auto; max-width: 600px; padding: 20px; background-color: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
 
     </div>
@@ -25,8 +39,10 @@
     <p>This is my website.</p>
 
 <script>
-    function showimage(){
-        document.getElementById("imageContainer").style.display = "block";
+    function showSection(key) {
+        document.querySelectorAll('.section').forEach(s => {
+            s.style.display = (s.id === 'section-' + key) ? 'block' : 'none';
+        });
     }
 </script>    
 </body>
