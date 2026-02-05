@@ -7,43 +7,43 @@
 <body>
     <div class="navbar">
         <button onclick="showSection('private')">私人问诊</button>
-        <button onclick="showSection('a')">a</button>
-        <button onclick="showSection('b')">b</button>
-        <button onclick="showSection('c')">c</button>
-        <button onclick="showSection('d')">d</button>
+        <button onclick="showSection('report')">报告解读</button>
+        <button onclick="showSection('drug')">药品解读</button>
+        <button onclick="showSection('symptoms')">病情普问</button>
+        <button onclick="showSection('hospital')">医院链接</button>
     </div>
     <div id="section-private" class="section" style="display: none; text-align: center; margin-top: 50px;">
         <img src="En Passant.png" width="300">
         <p>AI Doctor</p>
+        <div class="private-input" style="margin-top: 20px; max-width: 600px; margin-left: auto; margin-right: auto; text-align: left;">
+            <label for="privateText">问诊内容：</label>
+            <textarea id="privateText" rows="4" placeholder="Describe your symptoms..." style="width: 100%; box-sizing: border-box; margin-top: 6px;"></textarea>
+            <div style="margin-top: 8px; text-align: right;">
+                <button id="sendPrivate" onclick="submitPrivate()">Send</button>
+            </div>
+        </div>
     </div>
-    <div id="section-a" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
+    <div id="section-report" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
         <p>Content for A (placeholder)</p>
     </div>
 
-    <div id="section-b" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
+    <div id="section-drug" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
         <p>Content for B (placeholder)</p>
     </div>
 
-    <div id="section-c" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
+    <div id="section-symptoms" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
         <p>Content for C (placeholder)</p>
     </div>
 
-    <div id="section-d" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
+    <div id="section-hospital" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
         <p>Content for D (placeholder)</p>
-    </div>
-    <div id="messages" style="margin: 50px auto; max-width: 600px; padding: 20px; background-color: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-
     </div>
 
     <h1>Welcome to my website.</h1>
     <p>This is my website.</p>
 
-<script>
-    function showSection(key) {
-        document.querySelectorAll('.section').forEach(s => {
-            s.style.display = (s.id === 'section-' + key) ? 'block' : 'none';
-        });
-    }
+<script src="script.js">
+
 </script>    
 </body>
 </html>
