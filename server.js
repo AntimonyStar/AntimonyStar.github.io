@@ -5,6 +5,11 @@ import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 
+import multer from "multer";
+import axios from "axios";
+import FormData from "form-data";
+import fs from "fs";
+
 // Load environment variables from .env
 dotenv.config();
 
@@ -16,6 +21,93 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static(".")); // serves index.html, script.js, etc.
+
+const upload = multer({ dest: "uploads/" });
+
+app.post("/scan-med", upload.single("image"), async (req, res) => {
+  try {
+    const formData = new FormData();
+    formData.append("image", fs.createReadStream(req.file.path));
+
+    const ocrResponse = await axios.post(
+      "http://localhost:5001/ocr",
+      formData,
+      { headers: formData.getHeaders() }
+    );
+
+    fs.unlinkSync(req.file.path);
+
+    const rawText = ocrResponse.data.text;
+
+    // ✅ SEND OCR TEXT TO GPT
+    const gptResponse = await openai.responses.create({
+      model: "gpt-5-mini",
+      input: `
+    Extract the medication information from this OCR text.
+    Return valid JSON with:
+    - brand_name
+    - generic_name
+    - strength
+    - dosage_form
+    - identifier (DIN or NDC if present)
+
+    OCR TEXT:
+    ${rawText}
+    `
+    });
+
+    console.log("GPT TEXT OUTPUT:", gptResponse.output_text);
+
+    const structuredData = JSON.parse(gptResponse.output_text);
+    const analysisResponse = await openai.responses.create({
+    model: "gpt-5-mini",
+    input: `
+    You are a medical assistant.
+
+    Provide a clear, structured medication analysis for the following drug:
+
+    Brand name: ${structuredData.brand_name}
+    Generic name: ${structuredData.generic_name}
+    Strength: ${structuredData.strength}
+    Dosage form: ${structuredData.dosage_form}
+    Identifier: ${structuredData.identifier}
+
+    Include:
+    1. What it is used for
+    2. How it works
+    3. How to use it
+    4. Common side effects
+    5. Serious warnings
+    6. When to see a doctor
+
+    Keep it clear and patient-friendly.
+    `
+    });
+
+    res.json({
+  structured: structuredData,
+  analysis: analysisResponse.output_text
+});
+
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "OCR failed" });
+  }
+  
+});
+
+function extractDrugInfo(text) {
+  const approvalMatch = text.match(/国药准字[HZSJ]\d{8}/);
+  const approvalNumber = approvalMatch ? approvalMatch[0] : null;
+
+  const lines = text.split("\n");
+  const drugName = lines[0]; // crude MVP method
+
+  return { drugName, approvalNumber };
+}
+
+
 
 // OpenAI client
 const openai = new OpenAI({

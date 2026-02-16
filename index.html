@@ -28,7 +28,10 @@
     </div>
 
     <div id="section-drug" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
-        <p>Content for B (placeholder)</p>
+        <input type="file" id="medImage" accept="image/*">
+        <button onclick="uploadImage()">Scan Medication</button>  
+        <div id="analysisResult" style="margin-top:20px; white-space:pre-wrap; border:1px solid #ccc; padding:15px;"></div>
+    </div>  
     </div>
 
     <div id="section-symptoms" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
