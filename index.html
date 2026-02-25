@@ -3,16 +3,25 @@
 <head>
     <title>My AI Doctor</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet"
+href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 </head>
 <body>
+    <div class="medical-banner">
+    ⚕️ AI medical assistant — Not a licensed doctor. 
+    For emergencies call local emergency services.
+    </div>
     <div class="navbar">
         <button onclick="showSection('private')">私人问诊</button>
         <button onclick="showSection('report')">报告解读</button>
         <button onclick="showSection('drug')">药品解读</button>
         <button onclick="showSection('symptoms')">病情普问</button>
         <button onclick="showSection('hospital')">医院链接</button>
+        <button onclick="showSection('drugdatabase')">药品查询</button>
     </div>
-    <div id="section-private" class="section" style="display: none; text-align: center; margin-top: 50px;">
+    <div id="section-private" class="section" style="text-align: center; margin-top: 50px;">
         <img src="banner.jpg" width="300">
         <p>AI Doctor</p>
         <h2>Family Doctor AI</h2>
@@ -23,27 +32,74 @@
 
 
     </div>
-    <div id="section-report" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
-        <p>Content for A (placeholder)</p>
+    <div id="section-report" class="section page-container" style="display: none;">
+
+    <div class="card">
+        <h3>Upload Medical Report</h3>
+        <input type="file" id="reportImage" accept="image/*,application/pdf">
+        <button onclick="scanReport()">Analyze Report</button>
     </div>
+
+    <div class="card">
+        <h3>Analysis Result</h3>
+        <div id="reportResult"></div>
+    </div>
+
+</div>
 
     <div id="section-drug" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
         <input type="file" id="medImage" accept="image/*">
         <button onclick="uploadImage()">Scan Medication</button>  
         <div id="analysisResult" style="margin-top:20px; white-space:pre-wrap; border:1px solid #ccc; padding:15px;"></div>
     </div>  
-    </div>
+    
 
-    <div id="section-symptoms" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
-        <p>Content for C (placeholder)</p>
-    </div>
+    <div id="section-symptoms" class="section" style="display: none; margin: 50px auto; max-width: 700px;">
+        <h3>Symptom / Condition Search</h3>
+
+        <div style="margin-top:12px;">
+            <input id="symptomQuery" placeholder="e.g. diabetes, migraine..." style="width:75%; padding:10px;" />
+            <button onclick="searchSymptoms()" style="padding:10px 14px;">Search</button>
+        </div>
+
+        <div id="symptomStatus" style="margin-top:12px; font-size:14px; color:#555;"></div>
+
+        <div id="symptomResult" style="margin-top: 16px; white-space: pre-wrap; border: 1px solid #ccc; padding: 15px;"></div>
+        </div>
 
     <div id="section-hospital" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
-        <p>Content for D (placeholder)</p>
-    </div>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    <h1>Welcome to my website.</h1>
-    <p>This is my website.</p>
+        <div id="map" style="height: 400px;"></div>
+        <div>
+        <h3>Location (optional)</h3>
+
+        <label>Latitude</label>
+        <input id="lat" placeholder="43.4723">
+
+        <label>Longitude</label>
+        <input id="lon" placeholder="-80.5449">
+
+        <p>— or —</p>
+
+        <label>Address</label>
+        <input id="address" placeholder="200 University Ave W, Waterloo, ON">
+        <button onclick="useManualLocation()">Use this location</button>
+
+        <div id="locStatus"></div>
+        </div>
+        <button onclick="findHospital()">Find nearest hospital</button>
+        <div id="hospitalResult"></div>
+    </div>
+    <div id="section-drugdatabase" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
+        <h3>Drug Search</h3>
+        <input id="drugSearchInput" placeholder="Enter drug name..." style="width:75%; padding:10px;" />
+        <button onclick="searchDrug()" style="padding:10px 14px;">Search</button>
+        <div id="drugSearchResult" style="margin-top:12px; white-space:pre-wrap;"></div>
+    </div>
+    <h1>AI Family Doctor</h1>
+    <p>Chat • Report Analysis • Medication Scan</p>
 
 <script src="script.js">
 

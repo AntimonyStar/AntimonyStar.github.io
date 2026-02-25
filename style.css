@@ -2,7 +2,8 @@ body{
     background-color: white;
     font-family: Arial, Helvetica, sans-serif;
     text-align: center;
-    padding: 50px;
+    padding-top: 50px;
+
 }
 
 .navbar {
@@ -37,4 +38,49 @@ h1{
 p{
     font-size: 20px;
     color: navy;
+}
+
+.card {
+    background: white;
+    padding: 25px;
+    margin-bottom: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.page-container {
+    max-width: 700px;
+    margin: 40px auto;
+}
+
+.medical-banner {
+    background: #e3f2fd;
+    color: #0d47a1;
+    padding: 12px;
+    text-align: center;
+    font-size: 14px;
+    border-bottom: 1px solid #bbdefb;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+}
+
+.navbar button.active {
+    background: #1976d2;
+    color: white;
+}
+
+#symptomResult {
+  text-align: left;        /* stops weird centered layout */
+  line-height: 1.4;        /* normal line spacing */
+}
+
+.sources-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.sources-list li {
+  margin: 4px 0;           /* controls vertical gap between links */
 }
