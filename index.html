@@ -13,6 +13,10 @@ href="https://unpkg.com/leaflet/dist/leaflet.css"/>
     ⚕️ AI medical assistant — Not a licensed doctor. 
     For emergencies call local emergency services.
     </div>
+    <div id="authButtons">
+        <a href="/login">Login</a>
+        <a href="/logout">Logout</a>
+    </div>
     <div class="navbar">
         <button onclick="showSection('private')">私人问诊</button>
         <button onclick="showSection('report')">报告解读</button>
@@ -21,17 +25,50 @@ href="https://unpkg.com/leaflet/dist/leaflet.css"/>
         <button onclick="showSection('hospital')">医院链接</button>
         <button onclick="showSection('drugdatabase')">药品查询</button>
     </div>
-    <div id="section-private" class="section" style="text-align: center; margin-top: 50px;">
-        <img src="banner.jpg" width="300">
-        <p>AI Doctor</p>
-        <h2>Family Doctor AI</h2>
-        <div id="chat"></div>
+    <img src="banner.jpg" width="220">
+    
+    <h1>AI Family Doctor</h1>
+    <p>Chat • Report Analysis • Medication Scan</p>
 
-        <input id="input" placeholder="Describe your symptoms..." />
-        <button onclick="sendMessage()">Send</button>
+    <div id="section-private" class="section private-chat-section">
+    <div class="app-container">
 
+    <div class="sidebar">
+      <button id="newChatBtn">+ New Consultation</button>
+      <div id="conversationList"></div>
+    </div>
+
+    <div class="chat-area">
+    
+    <div class="intake-row">
+        <input id="age" type="number" min="0" placeholder="Age" />
+
+        <select id="sexAtBirth">
+            <option value="">Sex at birth</option>
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+            <option value="intersex">Intersex</option>
+            <option value="prefer_not_to_say">Prefer not to say</option>
+        </select>
+
+        <input id="location" placeholder="State / Province" />
+        </div>
+    <div class="chat-shell">
+        <div id="chat" class="chat-messages"></div>
+        
+        <div class="chat-input-row">
+            <textarea id="input" rows="1" placeholder="Describe your symptoms."></textarea>
+            <button id="sendBtn" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <div id="chat"></div>
+    </div>
 
     </div>
+
+</div>
+
     <div id="section-report" class="section page-container" style="display: none;">
 
     <div class="card">
@@ -47,11 +84,102 @@ href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 </div>
 
-    <div id="section-drug" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
-        <input type="file" id="medImage" accept="image/*">
-        <button onclick="uploadImage()">Scan Medication</button>  
-        <div id="analysisResult" style="margin-top:20px; white-space:pre-wrap; border:1px solid #ccc; padding:15px;"></div>
-    </div>  
+    <div id="section-drug" class="section" style="display:none; margin:50px auto; max-width:700px;">
+    <h3>Medication Scan</h3>
+    <div style="margin-bottom:12px;">
+    <label for="medScanMode">Scan mode:</label>
+    <select id="medScanMode">
+        <option value="manual">Manual mode</option>
+        <option value="automatic">Automatic mode</option>
+    </select>
+    </div>
+    <div style="margin-bottom:12px;">
+    <label for="medInputLanguage">Input language:</label>
+    <select id="medInputLanguage">
+        <option value="en">English</option>
+        <option value="zh">中文</option>
+    </select>
+    </div>
+
+    <div style="margin-bottom:12px;">
+    <label for="medOutputLanguage">Output language:</label>
+    <select id="medOutputLanguage">
+        <option value="en">English</option>
+        <option value="zh">中文</option>
+    </select>
+    </div>
+
+    <div style="margin-bottom:12px;">
+        <input type="file" id="medImage" accept="image/*" multiple>
+        <button onclick="scanMedication()">Scan Medication</button>
+    </div>
+
+    <div id="medScanStatus" style="margin:12px 0; color:#555;"></div>
+
+    <div id="medExtractionBox" style="display:none; border:1px solid #ccc; padding:15px; margin-top:15px;">
+        <h4>Detected medication info</h4>
+
+        <div style="margin-bottom:8px;">
+        <label>Brand name</label><br>
+        <input id="medBrandName" style="width:100%;">
+        </div>
+
+        <div style="margin-bottom:8px;">
+        <label>Generic name</label><br>
+        <input id="medGenericName" style="width:100%;">
+        </div>
+
+        <div style="margin-bottom:8px;">
+        <label>Strength</label><br>
+        <input id="medStrength" style="width:100%;">
+        </div>
+
+        <div style="margin-bottom:8px;">
+        <label>Dosage form</label><br>
+        <input id="medDosageForm" style="width:100%;">
+        </div>
+
+        <div style="margin-bottom:8px;">
+        <label>Identifier (DIN / NDC / NPN / 国药准字 etc.)</label><br>
+        <input id="medIdentifier" style="width:100%;">
+        </div>
+
+        <div style="margin-bottom:8px;">
+        <label>Route</label><br>
+        <input id="medRoute" style="width:100%;">
+        </div>
+
+        <div style="margin-bottom:8px;">
+        <label>Manufacturer</label><br>
+        <input id="medManufacturer" style="width:100%;">
+        </div>
+
+        <div style="margin-bottom:8px;">
+        <label>Visible text warnings</label><br>
+        <textarea id="medVisibleWarnings" style="width:100%; min-height:80px;"></textarea>
+        </div>
+
+        <div style="margin-bottom:8px;">
+        <label>Confidence notes</label><br>
+        <textarea id="medConfidenceNotes" style="width:100%; min-height:80px;" readonly></textarea>
+        <div id="medNameSuggestions" style="display:none; margin-top:12px; border:1px solid #ccc; padding:12px;">
+            <div style="margin-bottom:8px;"><strong>Suggested matches</strong></div>
+        </div>
+        </div>
+
+            <div style="margin-top:12px;">
+            <button onclick="confirmMedication()">Confirm and continue</button>
+            <button type="button" onclick="clearMedicationScan()">Rescan</button>
+            </div>
+        </div>
+
+    <details id="medOcrBox" style="display:none; margin-top:15px;">
+        <summary>Raw OCR text</summary>
+        <pre id="medOcrText" style="white-space:pre-wrap; border:1px solid #ccc; padding:12px;"></pre>
+    </details>
+
+    <div id="analysisResult" style="margin-top:20px; white-space:pre-wrap; border:1px solid #ccc; padding:15px; display:none;"></div>
+    </div>
     
 
     <div id="section-symptoms" class="section" style="display: none; margin: 50px auto; max-width: 700px;">
@@ -69,7 +197,6 @@ href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
     <div id="section-hospital" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
         <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
         <div id="map" style="height: 400px;"></div>
         <div>
@@ -90,7 +217,12 @@ href="https://unpkg.com/leaflet/dist/leaflet.css"/>
         <div id="locStatus"></div>
         </div>
         <button onclick="findHospital()">Find nearest hospital</button>
+        <label style="display:block; margin:10px 0;">
+        <input type="checkbox" id="useStraightLine">
+        Use straight-line distance instead of travel time
+        </label>
         <div id="hospitalResult"></div>
+        <div id="hospitalList"></div>
     </div>
     <div id="section-drugdatabase" class="section" style="display: none; margin: 50px auto; max-width: 600px;">
         <h3>Drug Search</h3>
@@ -98,11 +230,8 @@ href="https://unpkg.com/leaflet/dist/leaflet.css"/>
         <button onclick="searchDrug()" style="padding:10px 14px;">Search</button>
         <div id="drugSearchResult" style="margin-top:12px; white-space:pre-wrap;"></div>
     </div>
-    <h1>AI Family Doctor</h1>
-    <p>Chat • Report Analysis • Medication Scan</p>
+    
 
-<script src="script.js">
-
-</script>    
+<script src="script.js"></script>    
 </body>
 </html>

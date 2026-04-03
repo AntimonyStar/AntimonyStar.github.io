@@ -1,18 +1,34 @@
 // server.js
+import dotenv from "dotenv";
+dotenv.config();
+
+import pool from "./db/pool.js";
+import { DOCTOR_CONTRACT } from "./config/constants.js";
+import { deriveChiefComplaint, runTriageController } from "./services/triage.js";
+
+import conversationsRoutes from "./routes/conversations.js";
+import chatRoutes from "./routes/chat.js";
 
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
+
 import OpenAI from "openai";
 
-import multer from "multer";
 import axios from "axios";
 import FormData from "form-data";
 import fs from "fs";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
-import { searchMedlinePlus, fetchMedlinePlusSummary } from "./medlineplus.js";
 
-import { auth } from "express-openid-connect";
+import pkg from "express-openid-connect";
+const { auth, requiresAuth } = pkg;
+
+import fetch from "node-fetch";
+import { searchMedlinePlus, fetchMedlinePlusSummary } from "./medlineplus.js";
+import medicationScannerRoutes from "./routes/medScannerRoutes.js";
+
+import multer from "multer";
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first");
 
 async function extractPdfText(buffer) {
   const uint8 = new Uint8Array(buffer);
@@ -33,9 +49,6 @@ function stripHtml(html) {
   return html.replace(/<[^>]*>/g, "");
 }
 
-// Load environment variables from .env
-dotenv.config();
-
 // Create Express app
 const app = express();
 const PORT = 3000;
@@ -46,9 +59,9 @@ app.use(express.json());
 app.use(express.static(".")); // serves index.html, script.js, etc.
 
 const config = {
-  authRequired: true,
+  authRequired: false,
   auth0Logout: true,
-  secret: 'a long, randomly-generated string stored in env',
+  secret: process.env.AUTH0_SECRET,
   baseURL: 'http://localhost:3000',
   clientID: 'x8Wf2xOu0Ipy03DSCejeXehuCTaOgfjC',
   issuerBaseURL: 'https://dev-aidoctor.ca.auth0.com'
@@ -64,94 +77,27 @@ app.get('/', (req, res) => {
 
 // OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY, timeout: 120000, maxRetries: 0, fetch, logLevel: "debug"
+});
+
+app.use(medicationScannerRoutes({ openai }));
+
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+
+  res.on("finish", () => {
+    const end = process.hrtime.bigint();
+    const ms = Number(end - start) / 1e6;
+
+    console.log(
+      `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${ms.toFixed(1)} ms)`
+    );
+  });
+
+  next();
 });
 
 const upload = multer({ dest: "uploads/" });
-
-app.post("/scan-med", upload.single("image"), async (req, res) => {
-  try {
-    const formData = new FormData();
-    formData.append("image", fs.createReadStream(req.file.path));
-
-    const ocrResponse = await axios.post(
-      "http://localhost:5001/ocr",
-      formData,
-      { headers: formData.getHeaders() }
-    );
-
-    fs.unlinkSync(req.file.path);
-
-    const rawText = ocrResponse.data.text;
-
-    // ✅ SEND OCR TEXT TO GPT
-    const gptResponse = await openai.responses.create({
-      model: "gpt-5-mini",
-      input: `
-    Extract the medication information from this OCR text.
-    Return valid JSON with:
-    - brand_name
-    - generic_name
-    - strength
-    - dosage_form
-    - identifier (DIN or NDC if present)
-
-    OCR TEXT:
-    ${rawText}
-    `
-    });
-
-    console.log("GPT TEXT OUTPUT:", gptResponse.output_text);
-
-    const structuredData = JSON.parse(gptResponse.output_text);
-    const analysisResponse = await openai.responses.create({
-    model: "gpt-5-mini",
-    input: `
-    You are a medical assistant.
-
-    Provide a clear, structured medication analysis for the following drug:
-
-    Brand name: ${structuredData.brand_name}
-    Generic name: ${structuredData.generic_name}
-    Strength: ${structuredData.strength}
-    Dosage form: ${structuredData.dosage_form}
-    Identifier: ${structuredData.identifier}
-
-    Include:
-    1. What it is used for
-    2. How it works
-    3. How to use it
-    4. Common side effects
-    5. Serious warnings
-    6. When to see a doctor
-
-    Keep it clear and patient-friendly.
-    `
-    });
-
-    res.json({
-  structured: structuredData,
-  analysis: analysisResponse.output_text
-});
-
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "OCR failed" });
-  }
-  
-});
-
-function extractDrugInfo(text) {
-  const approvalMatch = text.match(/国药准字[HZSJ]\d{8}/);
-  const approvalNumber = approvalMatch ? approvalMatch[0] : null;
-
-  const lines = text.split("\n");
-  const drugName = lines[0]; // crude MVP method
-
-  return { drugName, approvalNumber };
-}
-
 app.post("/scan-report", upload.single("file"), async (req, res) => {
   try {
     const filePath = req.file.path;
@@ -215,7 +161,7 @@ ${extractedText}
 
 async function extractMedicalTopic(userText) {
   const response = await openai.responses.create({
-    model: "gpt-5-mini",
+    model: "gpt-5.4-mini",
     input: `
 Extract the main medical symptom or condition from this message.
 
@@ -274,127 +220,191 @@ app.post("/search-condition", async (req, res) => {
   }
 });
 
-const DOCTOR_CONTRACT = `
-You are an AI family doctor in a multi-turn conversation.
+const userIdCache = new Map();
 
-STRICT OUTPUT RULES (must follow):
-- No apologies or emotional phrases.
-- Acknowledgements optional, max 6 words.
-- No meta commentary.
-- Max 3 follow-up questions.
-- Avoid exhaustive checklists unless red flags are present.
-- Be concise and clinically focused.
+async function getOrCreateDbUser(req) {
+  if (!req.oidc?.isAuthenticated()) return null;
 
-RESPONSE FORMAT (mandatory):
-Acknowledgement (optional)
+  const sub = req.oidc.user.sub;
+  const email = req.oidc.user.email || null;
+  const name = req.oidc.user.name || null;
 
-Assessment:
-- 1–2 short bullet points only
+  const cached = userIdCache.get(sub);
+  if (cached !== undefined) return cached;
 
-Next questions:
-- 1–3 concise questions
-- Omit if none needed
+  const existing = await pool.query(
+    "SELECT id FROM users WHERE auth0_sub=$1",
+    [sub]
+  );
 
-When to seek urgent care:
-- Include only if red flags are present
+  if (existing.rows.length) {
+    const userId = existing.rows[0].id;
+    userIdCache.set(sub, userId);
+    return existing.rows[0].id;
+  }
 
-At each turn, perform ONLY ONE of the following:
-1) Give a brief assessment OR
-2) Ask follow-up questions
-Never do both unless explicitly instructed.
+  const created = await pool.query(
+    "INSERT INTO users (auth0_sub, email, name) VALUES ($1,$2,$3) RETURNING id",
+    [sub, email, name]
+  );
+  const userId = created.rows[0].id;
+  userIdCache.set(sub, userId);
+  return created.rows[0].id;
+}
 
-If the response violates the format, rewrite it internally before outputting.
+app.get("/test-db-live", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT NOW()");
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
-`;
+app.get("/api/me", (req, res) => {
+  if (!req.oidc?.isAuthenticated()) return res.json({ authenticated: false });
+  res.json({ authenticated: true, user: req.oidc.user });
+});
 
-// Emergency keyword list
-const emergencyKeywords = [
-  "chest pain",
-  "can't breathe",
-  "cannot breathe",
-  "shortness of breath",
-  "unconscious",
-  "stroke",
-  "seizure",
-  "heart attack",
-  "severe bleeding"
-];
+
+
+app.use(
+  "/api/conversations",
+  conversationsRoutes(pool, getOrCreateDbUser, requiresAuth)
+);
+
+app.use(
+  "/api/chat",
+  chatRoutes(pool, openai, getOrCreateDbUser, requiresAuth)
+);
+
 
 // ---- Conversation state (single-user MVP) ----
-let messages = [
-  { role: "developer", content: DOCTOR_CONTRACT }
-];
+const sessions = new Map();
 
-const MAX_ASSISTANT_TURNS = 20;
+function createSession() {
+  return {
+    messages: [
+      { role: "developer", content: DOCTOR_CONTRACT },
+  { role: "assistant",
+    content:
+      "Hello — I'm your AI family doctor assistant. I can help review your symptoms and guide you on what level of care may be appropriate. What symptoms are you experiencing today?"
+  }
+    ],
+    encounter: {
+      age: null,
+      sexAtBirth: null,
+      location: null,
+      chiefComplaint: null,
+      symptomDescription: "",
+      redFlags: [],
+      triageLevel: null
+    }
+  };
+}
+
+function getSession(sessionId) {
+  if (!sessionId) return createSession();
+
+  if (!sessions.has(sessionId)) {
+    sessions.set(sessionId, createSession());
+  }
+
+  return sessions.get(sessionId);
+}
 
 // Chat endpoint
 app.post("/chat", async (req, res) => {
-  const userMessage = req.body.message;
+  const {
+    sessionId,
+    message,
+    age,
+    sexAtBirth,
+    location
+  } = req.body;
 
-  if (!userMessage) {
+  if (!message || !message.trim()) {
     return res.json({ reply: "Please enter a message." });
   }
 
-  // Emergency check
-  const isEmergency = emergencyKeywords.some(keyword =>
-    userMessage.toLowerCase().includes(keyword)
-  );
-
-  if (isEmergency) {
-    return res.json({
-      reply:
-        "⚠️ This may be a medical emergency. Please contact emergency services or go to the nearest emergency room immediately."
-    });
-  }
-
   try {
-    // Add user message to history
-    messages.push({
-      role: "user",
-      content: userMessage
-    });
+    const session = getSession(sessionId);
 
-    // Count assistant turns
-    const assistantTurns = messages.filter(
-      m => m.role === "assistant"
-    ).length;
+    // Save/update structured intake fields
+    if (age) session.encounter.age = Number(age);
+    if (sexAtBirth) session.encounter.sexAtBirth = sexAtBirth;
+    if (location) session.encounter.location = location;
 
-    // Hard cap enforcement
-    if (assistantTurns >= MAX_ASSISTANT_TURNS) {
-      messages.push({
-        role: "developer",
-        content: `
-The conversation has reached its maximum length.
-Provide a concise assessment and clear next steps.
-Do NOT ask further questions.
-`
+    session.encounter.symptomDescription = message;
+    if (!session.encounter.chiefComplaint) {
+      session.encounter.chiefComplaint = deriveChiefComplaint(message);
+    }
+
+    // Controller decides urgency first
+    const triage = runTriageController(session.encounter, message);
+    session.encounter.redFlags = triage.redFlags;
+    session.encounter.triageLevel = triage.triageLevel;
+
+    if (triage.triageLevel === "emergency") {
+      return res.json({
+        reply: triage.reply,
+        triageLevel: triage.triageLevel,
+        redFlags: triage.redFlags
       });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5-mini",
-      messages
+    // Push to chat history only after controller pass
+    session.messages.push({
+      role: "user",
+      content: message
     });
 
-    let reply = completion.choices[0]?.message?.content;
+    const structuredContext = `
+Structured intake:
+- Age: ${session.encounter.age ?? "unknown"}
+- Sex at birth: ${session.encounter.sexAtBirth ?? "unknown"}
+- Location: ${session.encounter.location ?? "unknown"}
+- Chief complaint: ${session.encounter.chiefComplaint ?? "unknown"}
+- Current controller urgency: ${session.encounter.triageLevel}
+- Red flags: ${session.encounter.redFlags.join(", ") || "none"}
 
-    // Fallback
-    if (!reply || !reply.trim()) {
-      reply = "Could you tell me a bit more about what you’re experiencing?";
+Rules for this turn:
+- Ask at most 3 targeted follow-up questions if needed.
+- Do not diagnose.
+- Do not prescribe.
+- Do not state final triage as your own decision.
+- Be concise.
+`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5.4-nano",
+      messages: [
+        ...session.messages,
+        { role: "developer", content: structuredContext }
+      ]
+    });
+
+    let reply = completion.choices[0]?.message?.content?.trim();
+
+    if (!reply) {
+      reply = "Describe when this started, how severe it is, and whether it is getting worse.";
     }
 
-    // Add assistant reply to history
-    messages.push({
+    session.messages.push({
       role: "assistant",
       content: reply
     });
 
-    res.json({ reply });
-
+    res.json({
+      reply,
+      triageLevel: triage.triageLevel,
+      redFlags: triage.redFlags
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({
-      reply: "Sorry, something went wrong on the server."
+      reply: "Something went wrong on the server."
     });
   }
 });
@@ -415,11 +425,7 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 
   return 2 * R * Math.asin(Math.sqrt(a));
 }
-const OVERPASS_ENDPOINTS = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.nchc.org.tw/api/interpreter"
-];
+
 
 async function overpassFetch(query) {
   const body = new URLSearchParams({ data: query }).toString();
@@ -438,9 +444,24 @@ async function overpassFetch(query) {
   }
   throw lastErr;
 }
+async function osrmTravelTimes(fromLat, fromLon, hospitals) {
+  // OSRM wants lon,lat
+  const coords = [
+    `${fromLon},${fromLat}`,
+    ...hospitals.map(h => `${h.lon},${h.lat}`)
+  ].join(";");
+
+  const url = `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0`;
+
+  const r = await axios.get(url, { timeout: 10000 });
+  const durations = r.data?.durations?.[0]; // seconds, index 1..N are destinations
+  return durations || null;
+}
 
 app.get("/nearby-hospitals", async (req, res) => {
+  
   try {
+    const mode = String(req.query.mode || "straight"); // "straight" or "travel"
     const lat = Number(req.query.lat);
     const lon = Number(req.query.lon);
 
@@ -479,12 +500,35 @@ app.get("/nearby-hospitals", async (req, res) => {
     .filter(h => Number.isFinite(h.lat) && Number.isFinite(h.lon))
     .sort((a,b) => a.distance - b.distance);
 
-    res.json({
-      used: { lat, lon, radius },
-      count: hospitals.length,
-      top: hospitals[0] || null,
-      hospitals: hospitals.slice(0, 10) // ✅ return more for debugging
-    });
+    let results = hospitals.slice(0, 10); // candidates
+
+if (mode === "travel" && results.length > 0) {
+  try {
+    const durations = await osrmTravelTimes(lat, lon, results);
+
+    if (durations) {
+      results = results.map((h, i) => {
+        const sec = durations[i + 1]; // destination i is at durations[i+1]
+        return {
+          ...h,
+          travelSeconds: Number.isFinite(sec) ? sec : null,
+          travelMinutes: Number.isFinite(sec) ? sec / 60 : null
+        };
+      });
+
+      results.sort((a, b) => (a.travelSeconds ?? 1e18) - (b.travelSeconds ?? 1e18));
+    }
+  } catch (e) {
+    console.error("OSRM failed, falling back to straight:", e?.message);
+  }
+}
+
+res.json({
+  mode,
+  used: {lat, lon, radius},
+  top: results[0] || null,
+  hospitals: results
+});
 
   } catch (err) {
     console.error("nearby-hospitals error:", err?.response?.status, err?.message);
@@ -623,6 +667,11 @@ app.get("/drug-search", async (req, res) => {
   }
 });
 
+app.get("/test-db", async (req, res) => {
+  const result = await pool.query("SELECT NOW()");
+  
+  res.json(result.rows);
+});
 
 // Start server
 app.listen(PORT, () => {
